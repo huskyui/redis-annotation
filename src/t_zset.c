@@ -2281,6 +2281,7 @@ void genericZrangebyscoreCommand(redisClient *c, int reverse) {
         minidx = 2; maxidx = 3;
     }
 
+    // 校验score是否是分数
     if (zslParseRange(c->argv[minidx],c->argv[maxidx],&range) != REDIS_OK) {
         addReplyError(c,"min or max is not a float");
         return;
@@ -2311,6 +2312,7 @@ void genericZrangebyscoreCommand(redisClient *c, int reverse) {
     if ((zobj = lookupKeyReadOrReply(c,key,shared.emptymultibulk)) == NULL ||
         checkType(c,zobj,REDIS_ZSET)) return;
 
+    // ziplist 是一种压缩空间的好的数据结构
     if (zobj->encoding == REDIS_ENCODING_ZIPLIST) {
         unsigned char *zl = zobj->ptr;
         unsigned char *eptr, *sptr;
