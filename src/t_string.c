@@ -35,6 +35,7 @@
  *----------------------------------------------------------------------------*/
 
 static int checkStringLength(redisClient *c, long long size) {
+    // 512MB = 512*1024*1024 bytes
     if (size > 512*1024*1024) {
         addReplyError(c,"string exceeds maximum allowed size (512MB)");
         return REDIS_ERR;
@@ -56,7 +57,18 @@ static int checkStringLength(redisClient *c, long long size) {
  * XX flags.
  *
  * If ok_reply is NULL "+OK" is used.
- * If abort_reply is NULL, "$-1" is used. */
+ * If abort_reply is NULL, "$-1" is used.
+ *
+ * EX seconds    过期以毫秒为单位  set key value ex seconds    equals to    setex key seconds value
+ * PX milliseconds 过期以毫秒为单位 set key value px milliseconds equals to psetex key milliseconds value
+ * nx 不存在可以设值
+ * xx 存在可以设值
+ *
+ *
+ * */
+
+
+
 
 #define REDIS_SET_NO_FLAGS 0
 #define REDIS_SET_NX (1<<0)     /* Set if key not exists. */
@@ -72,9 +84,12 @@ void setGenericCommand(redisClient *c, int flags, robj *key, robj *val, robj *ex
             addReplyErrorFormat(c,"invalid expire time in %s",c->cmd->name);
             return;
         }
+        // 根据单位不同，将seconds 转换为 milliseconds
         if (unit == UNIT_SECONDS) milliseconds *= 1000;
     }
 
+    // nx参数是key对应的value存在时return
+    // xx参数是key对应的value不存在时return
     if ((flags & REDIS_SET_NX && lookupKeyWrite(c->db,key) != NULL) ||
         (flags & REDIS_SET_XX && lookupKeyWrite(c->db,key) == NULL))
     {
@@ -83,7 +98,11 @@ void setGenericCommand(redisClient *c, int flags, robj *key, robj *val, robj *ex
     }
     setKey(c->db,key,val);
     server.dirty++;
+
     if (expire) setExpire(c->db,key,mstime()+milliseconds);
+    // 通过redis pub sub功能实现对特定语句中实现分化，采用的是fire and forget方式‘
+    // 我们可以通过config notify-keyspace-events  xxx来实现对监听某些数据 AKE可以获取监听的数据
+    // 我们可以在通过sub 命令来监听subscribe __keyevent@0__:expired 来监听库0上的expired事件，我们可以看到这个notifyKeySpaceEvent这种，传了3个参数一个是db_id，key,和具体的event
     notifyKeyspaceEvent(REDIS_NOTIFY_STRING,"set",key,c->db->id);
     if (expire) notifyKeyspaceEvent(REDIS_NOTIFY_GENERIC,
         "expire",key,c->db->id);
@@ -148,6 +167,7 @@ int getGenericCommand(redisClient *c) {
     if ((o = lookupKeyReadOrReply(c,c->argv[1],shared.nullbulk)) == NULL)
         return REDIS_OK;
 
+    // 其他类型的，则会返回wrongType error
     if (o->type != REDIS_STRING) {
         addReply(c,shared.wrongtypeerr);
         return REDIS_ERR;
@@ -169,6 +189,10 @@ void getsetCommand(redisClient *c) {
     server.dirty++;
 }
 
+//   set key1 "hello world"
+// setrange key1 6 "redis"
+// get key1
+// hello redis
 void setrangeCommand(redisClient *c) {
     robj *o;
     long offset;

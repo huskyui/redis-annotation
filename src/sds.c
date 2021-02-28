@@ -115,6 +115,7 @@ void sdsupdatelen(sds s) {
  * number of bytes previously available. */
 void sdsclear(sds s) {
     struct sdshdr *sh = (void*) (s-(sizeof(struct sdshdr)));
+    // totalLen = sh->free+sh->len
     sh->free += sh->len;
     sh->len = 0;
     sh->buf[0] = '\0';
@@ -124,7 +125,7 @@ void sdsclear(sds s) {
  * is sure that after calling this function can overwrite up to addlen
  * bytes after the end of the string, plus one more byte for nul term.
  *
- * Note: this does not change the *length* of the sds string as returned
+ * Note: this does not change the *length* of the sds string as returneds
  * by sdslen(), but only the free buffer space we have. */
 sds sdsMakeRoomFor(sds s, size_t addlen) {
     struct sdshdr *sh, *newsh;
@@ -135,7 +136,8 @@ sds sdsMakeRoomFor(sds s, size_t addlen) {
     len = sdslen(s);
     sh = (void*) (s-(sizeof(struct sdshdr)));
     newlen = (len+addlen);
-    if (newlen < SDS_MAX_PREALLOC)
+    // 小于SDS最大长度时，我们放大两倍
+   if (newlen < SDS_MAX_PREALLOC)
         newlen *= 2;
     else
         newlen += SDS_MAX_PREALLOC;
@@ -156,6 +158,7 @@ sds sdsRemoveFreeSpace(sds s) {
     struct sdshdr *sh;
 
     sh = (void*) (s-(sizeof(struct sdshdr)));
+    // 获取len之后，重新malloc一下，没有考虑free的长度
     sh = zrealloc(sh, sizeof(struct sdshdr)+sh->len+1);
     sh->free = 0;
     return sh->buf;
@@ -163,10 +166,10 @@ sds sdsRemoveFreeSpace(sds s) {
 
 /* Return the total size of the allocation of the specifed sds string,
  * including:
- * 1) The sds header before the pointer.
- * 2) The string.
- * 3) The free buffer at the end if any.
- * 4) The implicit null term.
+ * 1) The sds header before the pointer. 指针前的sds头
+ * 2) The string. 字符串
+ * 3) The free buffer at the end if any. 后面的空闲缓冲区
+ * 4) The implicit null term. \n
  */
 size_t sdsAllocSize(sds s) {
     struct sdshdr *sh = (void*) (s-(sizeof(struct sdshdr)));
@@ -196,14 +199,19 @@ size_t sdsAllocSize(sds s) {
  * nread = read(fd, s+oldlen, BUFFER_SIZE);
  * ... check for nread <= 0 and handle it ...
  * sdsIncrLen(s, nread);
+ * 对char[]进行增加或者减小
+ *
  */
 void sdsIncrLen(sds s, int incr) {
     struct sdshdr *sh = (void*) (s-(sizeof(struct sdshdr)));
 
     if (incr >= 0)
+        // 增加时，要确认free容量大于incr
         assert(sh->free >= (unsigned int)incr);
     else
+        // 减少时，要确定len大于incr
         assert(sh->len >= (unsigned int)(-incr));
+    // 一边增加一边减少
     sh->len += incr;
     sh->free -= incr;
     s[sh->len] = '\0';
@@ -213,7 +221,9 @@ void sdsIncrLen(sds s, int incr) {
  * the original length of the sds will be set to zero.
  *
  * if the specified length is smaller than the current length, no operation
- * is performed. */
+ * is performed.
+ * 对sds字符串扩大，但不对sds里面的char[] 扩大
+ * */
 sds sdsgrowzero(sds s, size_t len) {
     struct sdshdr *sh = (void*)(s-(sizeof(struct sdshdr)));
     size_t totlen, curlen = sh->len;
@@ -231,6 +241,8 @@ sds sdsgrowzero(sds s, size_t len) {
     return s;
 }
 
+
+// TODO READ
 /* Append the specified binary-safe string pointed by 't' of 'len' bytes to the
  * end of the specified sds string 's'.
  *
@@ -594,6 +606,7 @@ sds sdstrim(sds s, const char *cset) {
  *
  * s = sdsnew("Hello World");
  * sdsrange(s,1,-1); => "ello World"
+ * 切片
  */
 void sdsrange(sds s, int start, int end) {
     struct sdshdr *sh = (void*) (s-(sizeof(struct sdshdr)));
@@ -649,7 +662,9 @@ void sdstoupper(sds s) {
  *
  * If two strings share exactly the same prefix, but one of the two has
  * additional characters, the longer string is considered to be greater than
- * the smaller one. */
+ * the smaller one.
+ * 比较
+ * */
 int sdscmp(const sds s1, const sds s2) {
     size_t l1, l2, minlen;
     int cmp;
@@ -658,6 +673,9 @@ int sdscmp(const sds s1, const sds s2) {
     l2 = sdslen(s2);
     minlen = (l1 < l2) ? l1 : l2;
     cmp = memcmp(s1,s2,minlen);
+    // If two strings share exactly the same prefix, but one of the two has
+    // * additional characters, the longer string is considered to be greater than
+    // * the smaller one.
     if (cmp == 0) return l1-l2;
     return cmp;
 }

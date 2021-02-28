@@ -645,6 +645,7 @@ int getLongLongFromObject(robj *o, long long *target) {
 
 int getLongLongFromObjectOrReply(redisClient *c, robj *o, long long *target, const char *msg) {
     long long value;
+    // 失败处理，  xx,err:=xxxxx if(err!=nil){log.error(err)}
     if (getLongLongFromObject(o, &value) != REDIS_OK) {
         if (msg != NULL) {
             addReplyError(c,(char*)msg);

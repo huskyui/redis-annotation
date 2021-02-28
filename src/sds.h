@@ -39,13 +39,17 @@
 typedef char *sds;
 
 struct sdshdr {
+    // 已使用的字节的数量
     unsigned int len;
+    // 未使用的字节的数量
     unsigned int free;
+    // 字节数组，用于保存字符串
     char buf[];
 };
 
 static inline size_t sdslen(const sds s) {
     struct sdshdr *sh = (void*)(s-(sizeof(struct sdshdr)));
+    // 获取sds中的len
     return sh->len;
 }
 
