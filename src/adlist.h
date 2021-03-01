@@ -32,18 +32,22 @@
 #define __ADLIST_H__
 
 /* Node, List, and Iterator are the only data structures used currently. */
-
+// 节点
 typedef struct listNode {
     struct listNode *prev;
     struct listNode *next;
     void *value;
 } listNode;
 
+
+// 迭代
 typedef struct listIter {
     listNode *next;
     int direction;
 } listIter;
 
+
+// list 中保存一个head,tail指针，和长度，和3个方法
 typedef struct list {
     listNode *head;
     listNode *tail;
@@ -53,18 +57,21 @@ typedef struct list {
     unsigned long len;
 } list;
 
+// 宏功能
 /* Functions implemented as macros */
-#define listLength(l) ((l)->len)
-#define listFirst(l) ((l)->head)
-#define listLast(l) ((l)->tail)
-#define listPrevNode(n) ((n)->prev)
-#define listNextNode(n) ((n)->next)
-#define listNodeValue(n) ((n)->value)
+#define listLength(l) ((l)->len)// 列表长度
+#define listFirst(l) ((l)->head)// 头节点
+#define listLast(l) ((l)->tail)// 尾节点
+#define listPrevNode(n) ((n)->prev) // 节点的前一个节点
+#define listNextNode(n) ((n)->next) // 节点的后一个节点
+#define listNodeValue(n) ((n)->value) //节点的值
 
-#define listSetDupMethod(l,m) ((l)->dup = (m))
-#define listSetFreeMethod(l,m) ((l)->free = (m))
-#define listSetMatchMethod(l,m) ((l)->match = (m))
+// 有点像给ajax设置successFunc,和errorFunc
+#define listSetDupMethod(l,m) ((l)->dup = (m)) // 将list的dup设置成m 这个方法
+#define listSetFreeMethod(l,m) ((l)->free = (m)) //
+#define listSetMatchMethod(l,m) ((l)->match = (m)) //
 
+// 获取方法
 #define listGetDupMethod(l) ((l)->dup)
 #define listGetFree(l) ((l)->free)
 #define listGetMatchMethod(l) ((l)->match)

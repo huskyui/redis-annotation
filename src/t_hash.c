@@ -37,9 +37,11 @@
 /* Check the length of a number of objects to see if we need to convert a
  * ziplist to a real hash. Note that we only check string encoded objects
  * as their string length can be queried in constant time. */
+// 试图将hash中的ziplist转换为正在的hash来存储。在field对应的value使用
 void hashTypeTryConversion(robj *o, robj **argv, int start, int end) {
     int i;
 
+    // 如果redisObject的encoding，如果value大于hashMaxZiplistValue时，需要将ziplist转化为hash
     if (o->encoding != REDIS_ENCODING_ZIPLIST) return;
 
     for (i = start; i <= end; i++) {
@@ -420,10 +422,11 @@ void hashTypeConvertZiplist(robj *o, int enc) {
 
         hi = hashTypeInitIterator(o);
         dict = dictCreate(&hashDictType, NULL);
-
+        // 有点像iterator 迭代 ziplist
         while (hashTypeNext(hi) != REDIS_ERR) {
             robj *field, *value;
 
+            // copy-on-write 方式
             field = hashTypeCurrentObject(hi, REDIS_HASH_KEY);
             field = tryObjectEncoding(field);
             value = hashTypeCurrentObject(hi, REDIS_HASH_VALUE);
@@ -448,6 +451,7 @@ void hashTypeConvertZiplist(robj *o, int enc) {
 }
 
 void hashTypeConvert(robj *o, int enc) {
+    // ziplist convert to hash
     if (o->encoding == REDIS_ENCODING_ZIPLIST) {
         hashTypeConvertZiplist(o, enc);
     } else if (o->encoding == REDIS_ENCODING_HT) {
