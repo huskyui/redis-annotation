@@ -296,9 +296,11 @@ void mgetCommand(redisClient *c) {
     addReplyMultiBulkLen(c,c->argc-1);
     for (j = 1; j < c->argc; j++) {
         robj *o = lookupKeyRead(c->db,c->argv[j]);
+        // 如果是其中一个空就返回空
         if (o == NULL) {
             addReply(c,shared.nullbulk);
         } else {
+            // 如果不为空，且不是当前不是key-value型，也返回null
             if (o->type != REDIS_STRING) {
                 addReply(c,shared.nullbulk);
             } else {
@@ -317,12 +319,15 @@ void msetGenericCommand(redisClient *c, int nx) {
     }
     /* Handle the NX flag. The MSETNX semantic is to return zero and don't
      * set nothing at all if at least one already key exists. */
+    // 如果是nx flag
     if (nx) {
+        // 统计key存在的个数
         for (j = 1; j < c->argc; j += 2) {
             if (lookupKeyWrite(c->db,c->argv[j]) != NULL) {
                 busykeys++;
             }
         }
+        // 如果key >0
         if (busykeys) {
             addReply(c, shared.czero);
             return;
@@ -335,6 +340,7 @@ void msetGenericCommand(redisClient *c, int nx) {
         notifyKeyspaceEvent(REDIS_NOTIFY_STRING,"set",c->argv[j],c->db->id);
     }
     server.dirty += (c->argc-1)/2;
+    // msetnx是返回1或0，而mset是返回ok
     addReply(c, nx ? shared.cone : shared.ok);
 }
 
@@ -355,6 +361,7 @@ void incrDecrCommand(redisClient *c, long long incr) {
     if (getLongLongFromObjectOrReply(c,o,&value,NULL) != REDIS_OK) return;
 
     oldvalue = value;
+    // 超出范围
     if ((incr < 0 && oldvalue < 0 && incr < (LLONG_MIN-oldvalue)) ||
         (incr > 0 && oldvalue > 0 && incr > (LLONG_MAX-oldvalue))) {
         addReplyError(c,"increment or decrement would overflow");
@@ -370,6 +377,7 @@ void incrDecrCommand(redisClient *c, long long incr) {
         o->ptr = (void*)((long)value);
     } else {
         new = createStringObjectFromLongLong(value);
+        // 新建或覆盖
         if (o) {
             dbOverwrite(c->db,c->argv[1],new);
         } else {
