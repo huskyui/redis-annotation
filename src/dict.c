@@ -303,6 +303,7 @@ int dictRehash(dict *d, int n) {
     }
 
     /* Check if we already rehashed the whole table... */
+    // 搬运工搬完， zfree dt[0]  ht[1]赋给ht[0]
     if (d->ht[0].used == 0) {
         zfree(d->ht[0].table);
         d->ht[0] = d->ht[1];
