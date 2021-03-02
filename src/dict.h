@@ -44,6 +44,7 @@
 /* Unused arguments generate annoying warnings... */
 #define DICT_NOTUSED(V) ((void) V)
 
+// 键值对
 typedef struct dictEntry {
     void *key;
     union {
@@ -55,6 +56,7 @@ typedef struct dictEntry {
     struct dictEntry *next;
 } dictEntry;
 
+// 定义公共方法
 typedef struct dictType {
     unsigned int (*hashFunction)(const void *key);
     void *(*keyDup)(void *privdata, const void *key);
@@ -66,18 +68,26 @@ typedef struct dictType {
 
 /* This is our hash table structure. Every dictionary has two of this as we
  * implement incremental rehashing, for the old to the new table. */
+// 哈希表结构体
 typedef struct dictht {
+    // 字典实体
     dictEntry **table;
     unsigned long size;
     unsigned long sizemask;
+    // 正在被使用的
     unsigned long used;
 } dictht;
 
+// 字典主操作类
 typedef struct dict {
+    // 字典类型
     dictType *type;
     void *privdata;
+    // 字典哈希表一共两个，一个新一个就
     dictht ht[2];
+    // 重定位哈希时的下表
     long rehashidx; /* rehashing not in progress if rehashidx == -1 */
+    // 迭代器数量
     int iterators; /* number of iterators currently running */
 } dict;
 
@@ -85,9 +95,14 @@ typedef struct dict {
  * dictAdd, dictFind, and other functions against the dictionary even while
  * iterating. Otherwise it is a non safe iterator, and only dictNext()
  * should be called while iterating. */
+
+// 字典迭代器
 typedef struct dictIterator {
+    // 当前字典
     dict *d;
+    // 下表
     long index;
+    // 如果不安全，只能调用dictNext()
     int table, safe;
     dictEntry *entry, *nextEntry;
     /* unsafe iterator fingerprint for misuse detection. */
@@ -97,9 +112,11 @@ typedef struct dictIterator {
 typedef void (dictScanFunction)(void *privdata, const dictEntry *de);
 
 /* This is the initial size of every hash table */
+// 初始化hash表数量
 #define DICT_HT_INITIAL_SIZE     4
 
 /* ------------------------------- Macros ------------------------------------*/
+// 释放
 #define dictFreeVal(d, entry) \
     if ((d)->type->valDestructor) \
         (d)->type->valDestructor((d)->privdata, (entry)->v.val)
@@ -136,15 +153,15 @@ typedef void (dictScanFunction)(void *privdata, const dictEntry *de);
         (d)->type->keyCompare((d)->privdata, key1, key2) : \
         (key1) == (key2))
 
-#define dictHashKey(d, key) (d)->type->hashFunction(key)
-#define dictGetKey(he) ((he)->key)
-#define dictGetVal(he) ((he)->v.val)
-#define dictGetSignedIntegerVal(he) ((he)->v.s64)
-#define dictGetUnsignedIntegerVal(he) ((he)->v.u64)
-#define dictGetDoubleVal(he) ((he)->v.d)
-#define dictSlots(d) ((d)->ht[0].size+(d)->ht[1].size)
-#define dictSize(d) ((d)->ht[0].used+(d)->ht[1].used)
-#define dictIsRehashing(d) ((d)->rehashidx != -1)
+#define dictHashKey(d, key) (d)->type->hashFunction(key) // hash定位
+#define dictGetKey(he) ((he)->key) // 获取dictEntry的key值
+#define dictGetVal(he) ((he)->v.val) // 获取dictEntry的value值
+#define dictGetSignedIntegerVal(he) ((he)->v.s64) // 获取dictEntry的有符号值
+#define dictGetUnsignedIntegerVal(he) ((he)->v.u64) // get dictEntry unsigned val
+#define dictGetDoubleVal(he) ((he)->v.d) // 获取double类型值
+#define dictSlots(d) ((d)->ht[0].size+(d)->ht[1].size) // 获取dict字典表总表大小
+#define dictSize(d) ((d)->ht[0].used+(d)->ht[1].used) // 获取dict字典的两个表的正在被使用的数量
+#define dictIsRehashing(d) ((d)->rehashidx != -1) // 判断当前是否在rehashing
 
 /* API */
 dict *dictCreate(dictType *type, void *privDataPtr);
