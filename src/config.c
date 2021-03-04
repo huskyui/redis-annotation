@@ -85,8 +85,9 @@ void loadServerConfigFromString(char *config) {
     int slaveof_linenum = 0;
     sds *lines;
 
+    // 通过\n分割config字符串
     lines = sdssplitlen(config,strlen(config),"\n",1,&totlines);
-
+    // 遍历每行，每个参数进行处理,将每个读取到配置文件，重新写到redisServer 这个struct上去
     for (i = 0; i < totlines; i++) {
         sds *argv;
         int argc;
@@ -548,6 +549,7 @@ void loadServerConfigFromString(char *config) {
     }
 
     /* Sanity checks. */
+    // slaveof不支持cluster mode
     if (server.cluster_enabled && server.masterhost) {
         linenum = slaveof_linenum;
         i = linenum-1;
@@ -555,6 +557,7 @@ void loadServerConfigFromString(char *config) {
         goto loaderr;
     }
 
+    // free相关操作
     sdsfreesplitres(lines,totlines);
     return;
 
@@ -590,15 +593,18 @@ void loadServerConfig(char *filename, char *options) {
                 exit(1);
             }
         }
+        // while 循环读取文件，有可能是像python 那种 读取每行，将读取到数据拼接到config 这个sds（redis 特供的string）
         while(fgets(buf,REDIS_CONFIGLINE_MAX+1,fp) != NULL)
             config = sdscat(config,buf);
         if (fp != stdin) fclose(fp);
     }
     /* Append the additional options */
+    // 如果有option存在，则将option拼接到config参数上去
     if (options) {
         config = sdscat(config,"\n");
         config = sdscat(config,options);
     }
+    // 加载配置文件以及（可能出现的options）
     loadServerConfigFromString(config);
     sdsfree(config);
 }

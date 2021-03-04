@@ -268,6 +268,7 @@ static aeTimeEvent *aeSearchNearestTimer(aeEventLoop *eventLoop)
 }
 
 /* Process time events */
+// 处理时间时间  时间事件是链表形式的
 static int processTimeEvents(aeEventLoop *eventLoop) {
     int processed = 0;
     aeTimeEvent *te;
@@ -293,6 +294,7 @@ static int processTimeEvents(aeEventLoop *eventLoop) {
 
     te = eventLoop->timeEventHead;
     maxId = eventLoop->timeEventNextId-1;
+    // 依次调用链表
     while(te) {
         long now_sec, now_ms;
         long long id;
@@ -341,8 +343,14 @@ static int processTimeEvents(aeEventLoop *eventLoop) {
  * Without special flags the function sleeps until some file event
  * fires, or when the next time event occurs (if any).
  *
+ * 处理每个待处理的时间事件，然后处理每个待处理的文件事件（可以通过刚刚处理的时间事件回调来注册）。
+ * 没有特殊标志的情况下，该功能将一直休眠，直到引发某些文件事件或下次发生事件（如果有）时为止。
+ *
+ *
  * If flags is 0, the function does nothing and returns.
+ * // do nothing
  * if flags has AE_ALL_EVENTS set, all the kind of events are processed.
+ * 如果标志设置了AE_ALL_EVENTS，则处理所有类型的事件。
  * if flags has AE_FILE_EVENTS set, file events are processed.
  * if flags has AE_TIME_EVENTS set, time events are processed.
  * if flags has AE_DONT_WAIT set the function returns ASAP until all
@@ -365,6 +373,8 @@ int aeProcessEvents(aeEventLoop *eventLoop, int flags)
         int j;
         aeTimeEvent *shortest = NULL;
         struct timeval tv, *tvp;
+
+        // 计算I/O多路复用的等待时间 tvp
 
         if (flags & AE_TIME_EVENTS && !(flags & AE_DONT_WAIT))
             shortest = aeSearchNearestTimer(eventLoop);
@@ -397,6 +407,10 @@ int aeProcessEvents(aeEventLoop *eventLoop, int flags)
             }
         }
 
+        // 文件事件
+        // 在一般情况下，aeProcessEvents 都会先计算最近的时间事件发生所需要等待的时间，
+        // 然后调用 aeApiPoll 方法在这段时间中等待事件的发生，
+        // 在这段时间中如果发生了文件事件，就会优先处理文件事件，否则就会一直等待，直到最近的时间事件需要触发：
         numevents = aeApiPoll(eventLoop, tvp);
         for (j = 0; j < numevents; j++) {
             aeFileEvent *fe = &eventLoop->events[eventLoop->fired[j].fd];
@@ -418,6 +432,7 @@ int aeProcessEvents(aeEventLoop *eventLoop, int flags)
             processed++;
         }
     }
+    // 处理时间事件
     /* Check time events */
     if (flags & AE_TIME_EVENTS)
         processed += processTimeEvents(eventLoop);
@@ -446,12 +461,15 @@ int aeWait(int fd, int mask, long long milliseconds) {
         return retval;
     }
 }
-
+// 处理事件循环
 void aeMain(aeEventLoop *eventLoop) {
     eventLoop->stop = 0;
+    // while 循环，直到stop 设置
     while (!eventLoop->stop) {
         if (eventLoop->beforesleep != NULL)
             eventLoop->beforesleep(eventLoop);
+        // 这个处理事件的函数
+        //
         aeProcessEvents(eventLoop, AE_ALL_EVENTS);
     }
 }

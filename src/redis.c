@@ -833,12 +833,14 @@ void activeExpireCycle(int type) {
             if (num > ACTIVE_EXPIRE_CYCLE_LOOKUPS_PER_LOOP)
                 num = ACTIVE_EXPIRE_CYCLE_LOOKUPS_PER_LOOP;
 
+            // 获取20个键，随机获取，在dict总radom获取，判断是否过期
             while (num--) {
                 dictEntry *de;
                 long long ttl;
 
                 if ((de = dictGetRandomKey(db->expires)) == NULL) break;
                 ttl = dictGetSignedIntegerVal(de)-now;
+                // 执行过期操作
                 if (activeExpireCycleTryExpire(db,de,now)) expired++;
                 if (ttl > 0) {
                     /* We want the average TTL of keys yet not expired. */
@@ -871,6 +873,10 @@ void activeExpireCycle(int type) {
             if (timelimit_exit) return;
             /* We don't repeat the cycle if there are less than 25% of keys
              * found expired in the current DB. */
+            // 如果返现过期的键数目 > 20/4 = 5
+            // 如果小于20的25%的话，我们就不死循环，如果大于25的话，就会死循环的执行这个操作
+            // 所以可以看到 在极客时间里面的，有一个说，不能让key大规模同一时间expire,不然就会死循环，达到25%以下。
+            // 所以需要设置大规模键的时候，需要设置秒数+几毫秒上下
         } while (expired > ACTIVE_EXPIRE_CYCLE_LOOKUPS_PER_LOOP/4);
     }
 }
@@ -974,6 +980,8 @@ void clientsCron(void) {
      * per call. Since this function is called server.hz times per second
      * we are sure that in the worst case we process all the clients in 1
      * second. */
+    // 确保每个调用至少处理numclientsserver.hz个客户端。
+    // 由于此功能称为每秒server.hz次，因此我们确定在最坏的情况下，我们会在1秒内处理所有客户端。
     int numclients = listLength(server.clients);
     int iterations = numclients/server.hz;
     mstime_t now = mstime();
@@ -1009,6 +1017,7 @@ void clientsCron(void) {
 void databasesCron(void) {
     /* Expire keys by random sampling. Not required for slaves
      * as master will synthesize DELs for us. */
+    // 随机过期key,&& 主节点
     if (server.active_expire_enabled && server.masterhost == NULL)
         activeExpireCycle(ACTIVE_EXPIRE_CYCLE_SLOW);
 
@@ -1028,12 +1037,15 @@ void databasesCron(void) {
         if (dbs_per_call > server.dbnum) dbs_per_call = server.dbnum;
 
         /* Resize */
+        // resize_db%server.dbnum 可以防止过界
+        // 判断16个库是dict是否expand size扩容
         for (j = 0; j < dbs_per_call; j++) {
             tryResizeHashTables(resize_db % server.dbnum);
             resize_db++;
         }
 
         /* Rehash */
+        // todo 没看懂
         if (server.activerehashing) {
             for (j = 0; j < dbs_per_call; j++) {
                 int work_done = incrementallyRehash(rehash_db % server.dbnum);
@@ -1076,6 +1088,8 @@ void updateCachedTime(void) {
  * a macro is used: run_with_period(milliseconds) { .... }
  */
 
+
+// 是我们的计时器中断，每秒称为server.hz次。在这里，我们做了许多需要异步完成的事情。。。 有点像cron（quartz）定时任务。 具体操作，还需要根据server.hz 这个配置文件
 int serverCron(struct aeEventLoop *eventLoop, long long id, void *clientData) {
     int j;
     REDIS_NOTUSED(eventLoop);
@@ -1126,6 +1140,7 @@ int serverCron(struct aeEventLoop *eventLoop, long long id, void *clientData) {
     }
 
     /* Show some info about non-empty databases */
+    // 展示非空的database信息
     run_with_period(5000) {
         for (j = 0; j < server.dbnum; j++) {
             long long size, used, vkeys;
@@ -1152,13 +1167,16 @@ int serverCron(struct aeEventLoop *eventLoop, long long id, void *clientData) {
     }
 
     /* We need to do a few operations on clients asynchronously. */
+    // 客户端连接的处理
     clientsCron();
 
     /* Handle background operations on Redis databases. */
+    // 1.处理过期key,2.库是否需要扩容 3.还有一个看不懂的
     databasesCron();
 
     /* Start a scheduled AOF rewrite if this was requested by the user while
      * a BGSAVE was in progress. */
+    // 如果开启aof_rewrite_schedule，开启重写aof文件 后台
     if (server.rdb_child_pid == -1 && server.aof_child_pid == -1 &&
         server.aof_rewrite_scheduled)
     {
@@ -1419,6 +1437,7 @@ void initServerConfig(void) {
     server.configfile = NULL;
     server.hz = REDIS_DEFAULT_HZ;
     server.runid[REDIS_RUN_ID_SIZE] = '\0';
+    // 通过比较sizeof(long) 来确定当前架构是64位还是32位，机器
     server.arch_bits = (sizeof(long) == 8) ? 64 : 32;
     server.port = REDIS_SERVERPORT;
     server.tcp_backlog = REDIS_TCP_BACKLOG;
@@ -1763,6 +1782,7 @@ void resetServerStats(void) {
     server.aof_delayed_fsync = 0;
 }
 
+// 启动服务器
 void initServer(void) {
     int j;
 
@@ -1770,6 +1790,7 @@ void initServer(void) {
     signal(SIGPIPE, SIG_IGN);
     setupSignalHandlers();
 
+    // 如果开启日志
     if (server.syslog_enabled) {
         openlog(server.syslog_ident, LOG_PID | LOG_NDELAY | LOG_NOWAIT,
             server.syslog_facility);
@@ -1777,11 +1798,17 @@ void initServer(void) {
 
     server.pid = getpid();
     server.current_client = NULL;
+    // 活的客户端
     server.clients = listCreate();
+    // 异步关闭的客户端
     server.clients_to_close = listCreate();
+    // slave列表
     server.slaves = listCreate();
+    // monitor列表
     server.monitors = listCreate();
+    // 复制输出中最后选择的数据库
     server.slaveseldb = -1; /* Force to emit the first SELECT command. */
+    // 下一个循环之前要取消阻止的客户端列表
     server.unblocked_clients = listCreate();
     server.ready_keys = listCreate();
     server.clients_waiting_acks = listCreate();
@@ -1790,6 +1817,10 @@ void initServer(void) {
 
     createSharedObjects();
     adjustOpenFilesLimit();
+
+    // 创建eventLoop,多路复用
+    // 在这里创建多个监听的套接字，并创建fileEvent用于接受和客户端连接
+    // 这里server.el会在main 函数中的asMain()中处理事件循环
     server.el = aeCreateEventLoop(server.maxclients+REDIS_EVENTLOOP_FDSET_INCR);
     server.db = zmalloc(sizeof(redisDb)*server.dbnum);
 
@@ -1855,6 +1886,7 @@ void initServer(void) {
 
     /* Create the serverCron() time event, that's our main way to process
      * background operations. */
+    // 创建serverCron（）时间事件，这是我们处理后台操作的主要方式。
     if(aeCreateTimeEvent(server.el, 1, serverCron, NULL, NULL) == AE_ERR) {
         redisPanic("Can't create the serverCron time event.");
         exit(1);
@@ -1862,6 +1894,7 @@ void initServer(void) {
 
     /* Create an event handler for accepting new connections in TCP and Unix
      * domain sockets. */
+    // 创建一个事件处理器，处理在tcp中的新连接
     for (j = 0; j < server.ipfd_count; j++) {
         if (aeCreateFileEvent(server.el, server.ipfd[j], AE_READABLE,
             acceptTcpHandler,NULL) == AE_ERR)
@@ -1870,6 +1903,7 @@ void initServer(void) {
                     "Unrecoverable error creating server.ipfd file event.");
             }
     }
+    // 处理unix domain sockets  连接
     if (server.sofd > 0 && aeCreateFileEvent(server.el,server.sofd,AE_READABLE,
         acceptUnixHandler,NULL) == AE_ERR) redisPanic("Unrecoverable error creating server.sofd file event.");
 
@@ -1888,16 +1922,21 @@ void initServer(void) {
      * no explicit limit in the user provided configuration we set a limit
      * at 3 GB using maxmemory with 'noeviction' policy'. This avoids
      * useless crashes of the Redis instance for out of memory. */
+    // 32位实例的地址空间限制为4GB，因此，如果用户提供的配置中没有明确的限制，
+    // 我们会使用带有“ noeviction”策略的maxmemory将限制设置为3GB。
+    // 这避免了Redis实例因内存不足而造成的无用崩溃
     if (server.arch_bits == 32 && server.maxmemory == 0) {
         redisLog(REDIS_WARNING,"Warning: 32 bit instance detected but no memory limit set. Setting 3 GB maxmemory limit with 'noeviction' policy now.");
         server.maxmemory = 3072LL*(1024*1024); /* 3 GB */
         server.maxmemory_policy = REDIS_MAXMEMORY_NO_EVICTION;
     }
-
+    // 如果开启cluster,cluster 初始化
     if (server.cluster_enabled) clusterInit();
     replicationScriptCacheInit();
     scriptingInit();
+    // 慢日志初始化，有点像mysql中的slow_query_log
     slowlogInit();
+    // 延迟监视器初始化
     latencyMonitorInit();
     bioInit();
 }
@@ -3592,7 +3631,7 @@ void redisSetProcTitle(char *title) {
     REDIS_NOTUSED(title);
 #endif
 }
-
+// main函数
 int main(int argc, char **argv) {
     struct timeval tv;
 
@@ -3607,24 +3646,29 @@ int main(int argc, char **argv) {
     gettimeofday(&tv,NULL);
     dictSetHashFunctionSeed(tv.tv_sec^tv.tv_usec^getpid());
     server.sentinel_mode = checkForSentinelMode(argc,argv);
+    // 初始化server配置，先使用默认配置
     initServerConfig();
 
     /* We need to init sentinel right now as parsing the configuration file
      * in sentinel mode will have the effect of populating the sentinel
      * data structures with master nodes to monitor. */
+    // 如果是哨兵模式，需要初始化哨兵配置，并初始化哨兵
     if (server.sentinel_mode) {
         initSentinelConfig();
         initSentinel();
     }
 
+    // 如果启动server 后面的参数>=2
     if (argc >= 2) {
         int j = 1; /* First option to parse in argv[] */
         sds options = sdsempty();
         char *configfile = NULL;
 
         /* Handle special options --help and --version */
+        // 如果是-v,就返回redis 版本
         if (strcmp(argv[1], "-v") == 0 ||
             strcmp(argv[1], "--version") == 0) version();
+        // -h ,就print usage(用法)
         if (strcmp(argv[1], "--help") == 0 ||
             strcmp(argv[1], "-h") == 0) usage();
         if (strcmp(argv[1], "--test-memory") == 0) {
@@ -3639,12 +3683,17 @@ int main(int argc, char **argv) {
         }
 
         /* First argument is the config file name? */
+        // 启动redis-server携带config文件时
+        // redis-server redis.conf
+        // 通过判断不是-- 开头
         if (argv[j][0] != '-' || argv[j][1] != '-')
+            // 获取redis.conf 信息
             configfile = argv[j++];
         /* All the other options are parsed and conceptually appended to the
          * configuration file. For instance --port 6380 will generate the
          * string "port 6380\n" to be parsed after the actual file name
          * is parsed, if any. */
+        // 可以通过 --port 6380 将参数放入options,,,options 是通过sdscat ，有点像append
         while(j != argc) {
             if (argv[j][0] == '-' && argv[j][1] == '-') {
                 /* Option name */
@@ -3665,15 +3714,21 @@ int main(int argc, char **argv) {
                 "Sentinel needs config file on disk to save state.  Exiting...");
             exit(1);
         }
+        // 获取configfile绝对地址
         if (configfile) server.configfile = getAbsolutePath(configfile);
+        //
         resetServerSaveParams();
+        // 重新导入配置文件以及跟在启动后面的参数
         loadServerConfig(configfile,options);
         sdsfree(options);
     } else {
         redisLog(REDIS_WARNING, "Warning: no config file specified, using the default config. In order to specify a config file use %s /path/to/%s.conf", argv[0], server.sentinel_mode ? "sentinel" : "redis");
     }
+    // 是否是以守护进程来进行
     if (server.daemonize) daemonize();
+    // todo read this
     initServer();
+    // 如果是后台运行，那么创建pid文件
     if (server.daemonize) createPidFile();
     redisSetProcTitle(argv[0]);
     redisAsciiArt();
@@ -3708,6 +3763,8 @@ int main(int argc, char **argv) {
     }
 
     aeSetBeforeSleepProc(server.el,beforeSleep);
+    // 事件处理 ，在初始化完成后，redis在aeMain()中处理事件循环
+    // while循环
     aeMain(server.el);
     aeDeleteEventLoop(server.el);
     return 0;
