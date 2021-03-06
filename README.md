@@ -32,7 +32,7 @@
 [美团点评](https://tech.meituan.com/2018/07/27/redis-rehash-practice-optimization.html)
 
 ### ziplist
-其实是一个超长的字符串
+其实是一个超长的字符串a'c'c
 
 分为
 header  entry entry entry   end（255 特殊标识位）

@@ -1894,7 +1894,7 @@ void initServer(void) {
 
     /* Create an event handler for accepting new connections in TCP and Unix
      * domain sockets. */
-    // 创建一个事件处理器，处理在tcp中的新连接
+    // 创建一个事件处理器，处理在tcp中的新连接，处理client端连接过来的
     for (j = 0; j < server.ipfd_count; j++) {
         if (aeCreateFileEvent(server.el, server.ipfd[j], AE_READABLE,
             acceptTcpHandler,NULL) == AE_ERR)

@@ -68,11 +68,14 @@ redisClient *createClient(int fd) {
      * This is useful since all the Redis commands needs to be executed
      * in the context of a client. When commands are executed in other
      * contexts (for instance a Lua script) we need a non connected client. */
+    // 使用-1可以创建一个未连接的客户端，比如在lua script上下文中
     if (fd != -1) {
         anetNonBlock(NULL,fd);
         anetEnableTcpNoDelay(NULL,fd);
+        // keepalive
         if (server.tcpkeepalive)
             anetKeepAlive(NULL,fd,server.tcpkeepalive);
+        // 添加fileEvent,作为多路复用里面的eventloop
         if (aeCreateFileEvent(server.el,fd,AE_READABLE,
             readQueryFromClient, c) == AE_ERR)
         {
@@ -584,6 +587,7 @@ void copyClientOutputBuffer(redisClient *dst, redisClient *src) {
 #define MAX_ACCEPTS_PER_CALL 1000
 static void acceptCommonHandler(int fd, int flags) {
     redisClient *c;
+    // 创建client
     if ((c = createClient(fd)) == NULL) {
         redisLog(REDIS_WARNING,
             "Error registering fd event for the new client: %s (fd=%d)",
@@ -617,6 +621,7 @@ void acceptTcpHandler(aeEventLoop *el, int fd, void *privdata, int mask) {
     REDIS_NOTUSED(mask);
     REDIS_NOTUSED(privdata);
 
+    // 这边max 可以通过配置，但是默认是1000个客户端连接
     while(max--) {
         cfd = anetTcpAccept(server.neterr, fd, cip, sizeof(cip), &cport);
         if (cfd == ANET_ERR) {
@@ -625,7 +630,9 @@ void acceptTcpHandler(aeEventLoop *el, int fd, void *privdata, int mask) {
                     "Accepting client connection: %s", server.neterr);
             return;
         }
+        // Accepted 172.22.0.1:43900 客户端连接服务器时，会打印这些类似的日志，需要调整redis log 级别
         redisLog(REDIS_VERBOSE,"Accepted %s:%d", cip, cport);
+        // 创建客户端，以及 添加事件 readyQueryFromClient
         acceptCommonHandler(cfd,0);
     }
 }
