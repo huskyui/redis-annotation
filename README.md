@@ -28,6 +28,32 @@
 #### 推荐阅读
 [多路复用](https://draveness.me/redis-io-multiplexing/)
 
+### client
+tcp是流式协议，不能保证输入输出的完整性，所以需要维护连接的状态，主要是输入和输出缓冲区。
+tcp 网络编程需要自己设定通信协议，常见的有
++ 以分割符划分完整的元素。如 \r\n
++ header+content 结构。 header 一般保存着content的长度，header可以是固定字节长度或者按照分隔符划分。
+#### redis中client如何和server端通信
+redis中使用`resp`协议通信，详见[文档](https://redis.io/topics/protocol)
+`resp`其实是一种序列话协议，一些数据类型取决于第一个字节
+
+type |  encoding
+--- | ---
+Simple String | `+{content}\r\n`
+Error | `-{error type} {content}\r\n`
+Integer | `:{number}\r\n`
+Bulk String | `${length}\r\n{content}\r\n`
+Array | `*{array length}\r\n{各类型元素} 重复 array length次数`
+举个例子，client发送一个命令给server端`llen mylist`，获取列表mylist的长度
+`*2\r\n$4\r\nLLEN\r\n$6\r\nmylist\r\n`
+`*2`是Array,然后`$4\r\nLLEN`是`BULK STRING`，长度是4，content是LLEN,后面同上。
+#### redis客户端发送命令分为两张
++ A client sends to the Redis server a RESP Array consisting of just Bulk Strings.
++ inline command: space-separated arguments 
+
+
+
+
 ### dict
 [美团点评](https://tech.meituan.com/2018/07/27/redis-rehash-practice-optimization.html)
 

@@ -1139,9 +1139,12 @@ void processInputBuffer(redisClient *c) {
             }
         }
 
+        // 这里是INLINE还是 MULTIBULK,不同处理方式
         if (c->reqtype == REDIS_REQ_INLINE) {
+            // 我的猜想是将处理的数据放入c->argv c->argc
             if (processInlineBuffer(c) != REDIS_OK) break;
         } else if (c->reqtype == REDIS_REQ_MULTIBULK) {
+            // 处理bulk string ,处理的数据放入c->argv c->argc
             if (processMultibulkBuffer(c) != REDIS_OK) break;
         } else {
             redisPanic("Unknown request type");
@@ -1152,6 +1155,7 @@ void processInputBuffer(redisClient *c) {
             resetClient(c);
         } else {
             /* Only reset the client when the command was executed. */
+            // 将整理好的命令进行处理
             if (processCommand(c) == REDIS_OK)
                 resetClient(c);
             /* freeMemoryIfNeeded may flush slave output buffers. This may result
@@ -1161,6 +1165,7 @@ void processInputBuffer(redisClient *c) {
     }
 }
 
+// 处理client发送过来的数据
 void readQueryFromClient(aeEventLoop *el, int fd, void *privdata, int mask) {
     redisClient *c = (redisClient*) privdata;
     int nread, readlen;
@@ -1220,6 +1225,7 @@ void readQueryFromClient(aeEventLoop *el, int fd, void *privdata, int mask) {
         freeClient(c);
         return;
     }
+    // 处理这里 input buffer
     processInputBuffer(c);
     server.current_client = NULL;
 }

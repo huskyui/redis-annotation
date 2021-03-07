@@ -526,8 +526,18 @@ typedef struct readyList {
 
 /* With multiplexing we need to take per-client state.
  * Clients are taken in a linked list. */
+
+// tcp是流式协议，不能保证输入输出的完整性，所以需要维护连接的状态，主要是输入和输出缓冲区。
+// tcp 网络编程需要自己设定通信协议，常见的有
+// 1。以分割符划分完整的元素。如 \r\n
+// 2. header+content 结构。 header 一般保存着content的长度，header可以是固定字节长度或者按照分隔符划分。
+//
+
+
+
+// TODO: read here
 typedef struct redisClient {
-    uint64_t id;            /* Client incremental unique ID. */
+    uint64_t id;            /* Client incremental unique ID. */ //
     int fd;
     redisDb *db;
     int dictid;
@@ -573,7 +583,7 @@ typedef struct redisClient {
     list *pubsub_patterns;  /* patterns a client is interested in (SUBSCRIBE) */
     sds peerid;             /* Cached peer ID. */
 
-    /* Response buffer */
+    /* Response buffer */ // 响应buffer
     int bufpos;
     char buf[REDIS_REPLY_CHUNK_BYTES];
 } redisClient;
