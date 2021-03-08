@@ -44,6 +44,8 @@ Error | `-{error type} {content}\r\n`
 Integer | `:{number}\r\n`
 Bulk String | `${length}\r\n{content}\r\n`
 Array | `*{array length}\r\n{各类型元素} 重复 array length次数`
+
+
 举个例子，client发送一个命令给server端`llen mylist`，获取列表mylist的长度
 `*2\r\n$4\r\nLLEN\r\n$6\r\nmylist\r\n`
 `*2`是Array,然后`$4\r\nLLEN`是`BULK STRING`，长度是4，content是LLEN,后面同上。
@@ -101,3 +103,6 @@ entry会保存1.当前的编码2.当前entry的字符串，3.前一个entry的�
     printf("%s",pointer);
     // 输出是tps://www.baidu.com
 ```
+### intset
+intset 底层维护了一个数组，如果根据新插入的数据，不同大小，选择不同类型，如果忽然插入一个大的数据，就需要换encoding类型。
+重新构建数组，在设计查找时，使用二分查找法。
