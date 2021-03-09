@@ -610,18 +610,28 @@ struct sharedObjectsStruct {
 
 /* ZSETs use a specialized version of Skiplists */
 typedef struct zskiplistNode {
+    // member
     robj *obj;
+    // score
     double score;
+    // 后一个指针（像后遍历使用）
     struct zskiplistNode *backward;
+    // 各层level,需要注意，这是一个数组。。 层级越低，表示节点数越多。
     struct zskiplistLevel {
+        // 前向指针，指向同一层的后续节点
         struct zskiplistNode *forward;
+        // unsigned 正数    当前层的跨度
         unsigned int span;
     } level[];
 } zskiplistNode;
 
+// 跳跃表
 typedef struct zskiplist {
+    // 头尾节点
     struct zskiplistNode *header, *tail;
+    // 节点个数
     unsigned long length;
+    // 最大层数   level<32 ?
     int level;
 } zskiplist;
 
