@@ -42,6 +42,7 @@ void slotToKeyFlush(void);
  *----------------------------------------------------------------------------*/
 
 robj *lookupKey(redisDb *db, robj *key) {
+    // 在db->dict中找key,如果entry存在，那么获取对应value
     dictEntry *de = dictFind(db->dict,key->ptr);
     if (de) {
         robj *val = dictGetVal(de);
@@ -70,7 +71,7 @@ robj *lookupKeyRead(redisDb *db, robj *key) {
 }
 
 robj *lookupKeyWrite(redisDb *db, robj *key) {
-    expireIfNeeded(db,key);
+    expireIfNeeded(db,key);r
     return lookupKey(db,key);
 }
 
@@ -224,9 +225,12 @@ long long emptyDb(void(callback)(void*)) {
     return removed;
 }
 
+// 切换db
 int selectDb(redisClient *c, int id) {
+    // [0,15]
     if (id < 0 || id >= server.dbnum)
         return REDIS_ERR;
+    // 切换db ，通过指针的方式
     c->db = &server.db[id];
     return REDIS_OK;
 }
@@ -778,13 +782,22 @@ int removeExpire(redisDb *db, robj *key) {
     return dictDelete(db->expires,key->ptr) == DICT_OK;
 }
 
+// 为指定key设置过期时间
+// 有了过期时间戳我们就很容易判断某个key是否过期：只要将当前时间戳跟过期时间戳比较一下即可，如果当前时间戳大于过期时间戳显然该key已经过期了。
+// 在Redis中，如果没有为一个key设置过期时间，那么该key就不会出现在db->expires字典中。也就是说db->expires字段只保存了设置有过期时间的key。
+// redisDb中的db->dict和db->expires两个字典是共享同一个key的，即它们都指向了同一个key字符串，而不是将同一个key复制两份。这点利用指针很容易实现
+
+
 void setExpire(redisDb *db, robj *key, long long when) {
     dictEntry *kde, *de;
 
     /* Reuse the sds from the main dict in the expire dict */
+    // 取出key
     kde = dictFind(db->dict,key->ptr);
     redisAssertWithInfo(NULL,key,kde != NULL);
+    // 取出过期时间
     de = dictReplaceRaw(db->expires,dictGetKey(kde));
+    // 重置key的过期时间
     dictSetSignedIntegerVal(de,when);
 }
 
@@ -875,16 +888,22 @@ int expireIfNeeded(redisDb *db, robj *key) {
  *
  * unit is either UNIT_SECONDS or UNIT_MILLISECONDS, and is only used for
  * the argv[2] parameter. The basetime is always specified in milliseconds. */
+// 设置过期时间
+// unit分为milliseconds,seconds
 void expireGenericCommand(redisClient *c, long long basetime, int unit) {
     robj *key = c->argv[1], *param = c->argv[2];
+    // 统统转换为milliseconds
     long long when; /* unix time in milliseconds when the key will expire. */
 
+    // 获取过期时间
     if (getLongLongFromObjectOrReply(c, param, &when, NULL) != REDIS_OK)
         return;
 
+    // 转换时间   加上basetime+expiretime 可以获取到最终过期时间戳
     if (unit == UNIT_SECONDS) when *= 1000;
     when += basetime;
 
+    // key 不存在，return
     /* No key, return zero. */
     if (lookupKeyRead(c->db,key) == NULL) {
         addReply(c,shared.czero);
@@ -898,16 +917,20 @@ void expireGenericCommand(redisClient *c, long long basetime, int unit) {
      * Instead we take the other branch of the IF statement setting an expire
      * (possibly in the past) and wait for an explicit DEL from the master. */
     if (when <= mstime() && !server.loading && !server.masterhost) {
+        // 如果过期时间戳小于当前时间并且没有载入数据并且是不是主节点   TODO 有点没看懂这里
         robj *aux;
 
         redisAssertWithInfo(c,key,dbDelete(c->db,key));
         server.dirty++;
 
         /* Replicate/AOF this as an explicit DEL. */
+        // 创建del string object
         aux = createStringObject("DEL",3);
+        //
         rewriteClientCommandVector(c,2,aux,key);
         decrRefCount(aux);
         signalModifiedKey(c->db,key);
+
         notifyKeyspaceEvent(REDIS_NOTIFY_GENERIC,"del",key,c->db->id);
         addReply(c, shared.cone);
         return;
@@ -967,6 +990,7 @@ void pttlCommand(redisClient *c) {
     ttlGenericCommand(c, 1);
 }
 
+// 去除过期时间，永久保存
 void persistCommand(redisClient *c) {
     dictEntry *de;
 

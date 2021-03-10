@@ -542,6 +542,7 @@ dictType zsetDictType = {
 };
 
 /* Db->dict, keys are sds strings, vals are Redis objects. */
+// db-dict中key都是sds string,val 是redisObject
 dictType dbDictType = {
     dictSdsHash,                /* hash function */
     NULL,                       /* key dup */

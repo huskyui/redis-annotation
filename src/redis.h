@@ -456,6 +456,8 @@ typedef struct redisObject {
  * greater idle times to the right (ascending order).
  *
  * Empty entries have the key pointer set to NULL. */
+// TODO READ HERE
+
 #define REDIS_EVICTION_POOL_SIZE 16
 struct evictionPoolEntry {
     unsigned long long idle;    /* Object idle time. */
@@ -466,14 +468,14 @@ struct evictionPoolEntry {
  * by integers from 0 (the default database) up to the max configured
  * database. The database number is the 'id' field in the structure. */
 typedef struct redisDb {
-    dict *dict;                 /* The keyspace for this DB */
-    dict *expires;              /* Timeout of keys with a timeout set */
-    dict *blocking_keys;        /* Keys with clients waiting for data (BLPOP) */
-    dict *ready_keys;           /* Blocked keys that received a PUSH */
-    dict *watched_keys;         /* WATCHED keys for MULTI/EXEC CAS */
+    dict *dict;                 /* The keyspace for this DB */ // 存放键值对
+    dict *expires;              /* Timeout of keys with a timeout set */ // 存放键和过期时间的映射
+    dict *blocking_keys;        /* Keys with clients waiting for data (BLPOP) */ // 存放 block操作的key与client的映射 阻塞 // 处于阻塞状态的键和相应的client (主要用于List类型的阻塞操作)
+    dict *ready_keys;           /* Blocked keys that received a PUSH */ // 接受的push操作的blocked key // 准备好数据可以解除阻塞状态的键和响应的client
+    dict *watched_keys;         /* WATCHED keys for MULTI/EXEC CAS */ // watched keys // 被watch 命令监控的key和响应client
     struct evictionPoolEntry *eviction_pool;    /* Eviction pool of keys */
     int id;                     /* Database ID */
-    long long avg_ttl;          /* Average TTL, just for stats */
+    long long avg_ttl;          /* Average TTL, just for stats */ // 平均过期时间，只是用于统计
 } redisDb;
 
 /* Client MULTI/EXEC state */
@@ -689,6 +691,7 @@ struct redisServer {
     pid_t pid;                  /* Main process pid. */
     char *configfile;           /* Absolute config file path, or NULL */
     int hz;                     /* serverCron() calls frequency in hertz */
+    // *db是数组意思   *db+=1,可以实现db指针移动下一个element
     redisDb *db;
     dict *commands;             /* Command table */
     dict *orig_commands;        /* Command table before command renaming. */
@@ -1348,6 +1351,7 @@ void rewriteConfigRewriteLine(struct rewriteConfigState *state, char *option, sd
 int rewriteConfig(char *path);
 
 /* db.c -- Keyspace access API */
+// db.c 的 interface
 int removeExpire(redisDb *db, robj *key);
 void propagateExpire(redisDb *db, robj *key);
 int expireIfNeeded(redisDb *db, robj *key);

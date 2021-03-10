@@ -119,3 +119,9 @@ skipList是sorted set中独有的,查找效率是O(lgn)
 zset 主要使用(ziplist)  or (dict和skiplist)
 1.zipList在两个条件下，是使用ziplist来保存数据
 2.dict作为map形式，提供member获取score.skiplist则提供快速查找，以及范围查找相关
+
+### redisDb
+
+![img_5.png](img_5.png)
+
+![img_6.png](img_6.png)
