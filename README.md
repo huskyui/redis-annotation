@@ -125,3 +125,32 @@ zset 主要使用(ziplist)  or (dict和skiplist)
 ![img_5.png](img_5.png)
 
 ![img_6.png](img_6.png)
+
+### persistence
++ `rdb`:The RDB persistence performs point-in-time snapshots of your dataset at specified intervals.
++ `aof`:  the AOF persistence logs every write operation received by the server, that will be played again at server startup, reconstructing the original dataset.
+  Commands are logged using the same format as the Redis protocol itself, in an append-only fashion. Redis is able to rewrite the log on background when it gets too big.
+
+#### rdb分为两张方式
++ `SAVE`或者`BGSAVE`主动触发: `SAVE`会在当前进程中执行`rdb`，`BGSAVE`会在子进程中
++ 配置`save <second> <changes>`被动触发，`save ""`为不使用rdb
+
+![img_7.png](img_7.png)
+#### rdb file format 
+[rdb file format](https://github.com/sripathikrishnan/redis-rdb-tools/wiki/Redis-RDB-Dump-File-Format)
+
+#### aof
+aof 文件是对命令的append,有几种写回策略
+![img_9.png](img_9.png)
+aof文件会不断变大，所以需要rewrite appendonlyfile.
+触发rewrite aof文件
+![img_10.png](img_10.png)
+fork一个子进程，重写aof文件，会同时记录在aof文件期间，parent 文件 diff 缓冲，以便在aof结束后append到tmp文件。
+最后rename tmp 文件
+![img_8.png](img_8.png)
+
+#### redis4.0使用了一个混合使用aof日志和内存快照
+` aof-use-rdb-preamble yes`
+记录两次rdb之间的命令，使用aof方式，记录命令。 
+这样在两次快照期间就可以在第一次和第二次之间宕机的话，可以实现数据不会丢失。
+![img_11.png](img_11.png)

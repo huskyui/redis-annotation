@@ -722,6 +722,7 @@ int rdbSave(char *filename) {
     rio rdb;
     int error;
 
+    // 创建临时文件
     snprintf(tmpfile,256,"temp-%d.rdb", (int) getpid());
     fp = fopen(tmpfile,"w");
     if (!fp) {
@@ -730,7 +731,9 @@ int rdbSave(char *filename) {
         return REDIS_ERR;
     }
 
+    // 子进程初始化文件
     rioInitWithFile(&rdb,fp);
+    // rdbSaveRio 写文件
     if (rdbSaveRio(&rdb,&error) == REDIS_ERR) {
         errno = error;
         goto werr;
@@ -743,6 +746,7 @@ int rdbSave(char *filename) {
 
     /* Use RENAME to make sure the DB file is changed atomically only
      * if the generate DB file is ok. */
+    // 如果写文件成功，rename方式，将tempfile rename成redis.rdb (这个可以配置)
     if (rename(tmpfile,filename) == -1) {
         redisLog(REDIS_WARNING,"Error moving temp DB file on the final destination: %s", strerror(errno));
         unlink(tmpfile);
@@ -771,12 +775,15 @@ int rdbSaveBackground(char *filename) {
     server.lastbgsave_try = time(NULL);
 
     start = ustime();
+    // fork 子进程
     if ((childpid = fork()) == 0) {
         int retval;
 
         /* Child */
+        // 关闭监听套接字
         closeListeningSockets(0);
         redisSetProcTitle("redis-rdb-bgsave");
+        // 调用之前的方法，
         retval = rdbSave(filename);
         if (retval == REDIS_OK) {
             size_t private_dirty = zmalloc_get_private_dirty();
