@@ -1,4 +1,5 @@
 /* Asynchronous replication implementation.
+ * // 异步复制的实现
  *
  * Copyright (c) 2009-2012, Salvatore Sanfilippo <antirez at gmail dot com>
  * All rights reserved.
@@ -561,6 +562,7 @@ void syncCommand(redisClient *c) {
 
     /* Refuse SYNC requests if we are a slave but the link with our master
      * is not ok... */
+    // 当slave在连接master阶段，不能使用sync命令
     if (server.masterhost && server.repl_state != REDIS_REPL_CONNECTED) {
         addReplyError(c,"Can't SYNC while not connected with my master");
         return;
@@ -570,11 +572,13 @@ void syncCommand(redisClient *c) {
      * the client about already issued commands. We need a fresh reply
      * buffer registering the differences between the BGSAVE and the current
      * dataset, so that we can copy to other slaves if needed. */
+    // 如果已经发送过同步命令时，不可再次发送
     if (listLength(c->reply) != 0 || c->bufpos != 0) {
         addReplyError(c,"SYNC and PSYNC are invalid with pending output");
         return;
     }
 
+    // 打印日志，slave name ask for synchronization
     redisLog(REDIS_NOTICE,"Slave %s asks for synchronization",
         replicationGetSlaveName(c));
 
@@ -587,7 +591,9 @@ void syncCommand(redisClient *c) {
      *
      * So the slave knows the new runid and offset to try a PSYNC later
      * if the connection with the master is lost. */
+    // 如果是psync,先尝试局部备份，如果失败就全量
     if (!strcasecmp(c->argv[0]->ptr,"psync")) {
+        // 尝试局部同步   slave发送master_replid和master的replid相同，且repl_off在repl_backlog有效范围，才会进行局部局部 resync
         if (masterTryPartialResynchronization(c) == REDIS_OK) {
             server.stat_sync_partial_ok++;
             return; /* No full resync needed, return. */
@@ -608,6 +614,8 @@ void syncCommand(redisClient *c) {
     }
 
     /* Full resynchronization. */
+
+    // full resync
     server.stat_sync_full++;
 
     /* Setup the slave as one waiting for BGSAVE to start. The following code
@@ -1261,6 +1269,7 @@ char *sendSynchronousCommand(int flags, int fd, ...) {
 #define PSYNC_CONTINUE 2
 #define PSYNC_FULLRESYNC 3
 #define PSYNC_NOT_SUPPORTED 4
+
 int slaveTryPartialResynchronization(int fd, int read_reply) {
     char *psync_runid;
     char psync_offset[32];
@@ -1392,15 +1401,18 @@ void syncWithMaster(aeEventLoop *el, int fd, void *privdata, int mask) {
         goto error;
     }
 
+    // slave send ping to master
     /* Send a PING to check the master is able to reply without errors. */
     if (server.repl_state == REDIS_REPL_CONNECTING) {
         redisLog(REDIS_NOTICE,"Non blocking connect for SYNC fired the event.");
         /* Delete the writable event so that the readable event remains
          * registered and we can wait for the PONG reply. */
+        // 删除writeAble事件
         aeDeleteFileEvent(server.el,fd,AE_WRITABLE);
         server.repl_state = REDIS_REPL_RECEIVE_PONG;
         /* Send the PING, don't check for errors at all, we have the timeout
          * that will take care about this. */
+        // 发送ping
         err = sendSynchronousCommand(SYNC_CMD_WRITE,fd,"PING",NULL);
         if (err) goto write_error;
         return;
@@ -1427,9 +1439,11 @@ void syncWithMaster(aeEventLoop *el, int fd, void *privdata, int mask) {
                 "Master replied to PING, replication can continue...");
         }
         sdsfree(err);
+        // 发现需要auth
         server.repl_state = REDIS_REPL_SEND_AUTH;
     }
 
+    // 发送auth命令
     /* AUTH with the master if required. */
     if (server.repl_state == REDIS_REPL_SEND_AUTH) {
         if (server.masterauth) {
@@ -1442,6 +1456,7 @@ void syncWithMaster(aeEventLoop *el, int fd, void *privdata, int mask) {
         }
     }
 
+    // 等待auth的回复
     /* Receive AUTH reply. */
     if (server.repl_state == REDIS_REPL_RECEIVE_AUTH) {
         err = sendSynchronousCommand(SYNC_CMD_READ,fd,NULL);
@@ -1456,6 +1471,7 @@ void syncWithMaster(aeEventLoop *el, int fd, void *privdata, int mask) {
 
     /* Set the slave port, so that Master's INFO command can list the
      * slave listening port correctly. */
+    // 设置slave port，以便info命令可以list slave list
     if (server.repl_state == REDIS_REPL_SEND_PORT) {
         sds port = sdsfromlonglong(server.port);
         err = sendSynchronousCommand(SYNC_CMD_WRITE,fd,"REPLCONF",
@@ -1528,6 +1544,7 @@ void syncWithMaster(aeEventLoop *el, int fd, void *privdata, int mask) {
         goto error;
     }
 
+    // psync
     psync_result = slaveTryPartialResynchronization(fd,1);
     if (psync_result == PSYNC_WAIT_REPLY) return; /* Try again later... */
 
@@ -1603,6 +1620,7 @@ write_error: /* Handle sendSynchronousCommand(SYNC_CMD_WRITE) errors. */
     goto error;
 }
 
+// 使用非阻塞式套接字建立连接，并注册可读可写 syncWithMaster（）
 int connectWithMaster(void) {
     int fd;
 
@@ -1614,6 +1632,7 @@ int connectWithMaster(void) {
         return REDIS_ERR;
     }
 
+    // 注意看syncWithMaster
     if (aeCreateFileEvent(server.el,fd,AE_READABLE|AE_WRITABLE,syncWithMaster,NULL) ==
             AE_ERR)
     {
@@ -1624,6 +1643,7 @@ int connectWithMaster(void) {
 
     server.repl_transfer_lastio = server.unixtime;
     server.repl_transfer_s = fd;
+    // 修改状态 为 正在连接
     server.repl_state = REDIS_REPL_CONNECTING;
     return REDIS_OK;
 }
@@ -1662,6 +1682,8 @@ int cancelReplicationHandshake(void) {
     return 1;
 }
 
+
+// 设置master节点的ip和port
 /* Set replication to the specified master address and port. */
 void replicationSetMaster(char *ip, int port) {
     sdsfree(server.masterhost);
@@ -2183,10 +2205,12 @@ long long replicationGetSlaveOffset(void) {
 /* --------------------------- REPLICATION CRON  ---------------------------- */
 
 /* Replication cron function, called 1 time per second. */
+// 复制
 void replicationCron(void) {
     static long long replication_cron_loops = 0;
 
-    /* Non blocking connection timeout? */
+    // 下面是连接操作
+    /* Non blocking connection timeout? */  // 在连接阶段，且在握手阶段
     if (server.masterhost &&
         (server.repl_state == REDIS_REPL_CONNECTING ||
          slaveIsInHandshakeState()) &&

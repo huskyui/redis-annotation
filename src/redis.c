@@ -1275,6 +1275,7 @@ int serverCron(struct aeEventLoop *eventLoop, long long id, void *clientData) {
 
     /* Replication cron function -- used to reconnect to master and
      * to detect transfer failures. */
+    // 1秒来一次同步
     run_with_period(1000) replicationCron();
 
     /* Run the Redis Cluster cron. */
