@@ -419,8 +419,11 @@ int parseScanCursorOrReply(redisClient *c, robj *o, unsigned long *cursor) {
     return REDIS_OK;
 }
 
+// 这个命令是实现SCANMHSCAN,SSCAN
 /* This command implements SCAN, HSCAN and SSCAN commands.
+// 如果o不为null,那么肯定是hash或者是set
  * If object 'o' is passed, then it must be a Hash or Set object, otherwise
+ * 如果o是null，那么就是当前命令就是操作当前的db的dict
  * if 'o' is NULL the command will operate on the dictionary associated with
  * the current database.
  *
@@ -447,12 +450,14 @@ void scanGenericCommand(redisClient *c, robj *o, unsigned long cursor) {
     /* Set i to the first option argument. The previous one is the cursor. */
     i = (o == NULL) ? 2 : 3; /* Skip the key argument if needed. */
 
+    // 
     /* Step 1: Parse options. */
     while (i < c->argc) {
         j = c->argc - i;
         if (!strcasecmp(c->argv[i]->ptr, "count") && j >= 2) {
             if (getLongFromObjectOrReply(c, c->argv[i+1], &count, NULL)
                 != REDIS_OK)
+                // 获取所传递的值count值并赋值给count，因为在count关键字后边是count的值，所以为c->argv[i+1]
             {
                 goto cleanup;
             }
@@ -469,6 +474,7 @@ void scanGenericCommand(redisClient *c, robj *o, unsigned long cursor) {
 
             /* The pattern always matches if it is exactly "*", so it is
              * equivalent to disabling it. */
+            // 如果模式是 *,那么就是不需要，disable pattern.
             use_pattern = !(pat[0] == '*' && patlen == 1);
 
             i += 2;
@@ -487,6 +493,7 @@ void scanGenericCommand(redisClient *c, robj *o, unsigned long cursor) {
      * cursor to zero to signal the end of the iteration. */
 
     /* Handle the case of a hash table. */
+    // 根据不同的类型。如果是hash和zset 的count *=2
     ht = NULL;
     if (o == NULL) {
         ht = c->db->dict;
@@ -501,6 +508,7 @@ void scanGenericCommand(redisClient *c, robj *o, unsigned long cursor) {
         count *= 2; /* We return key / value for this type. */
     }
 
+    // db dict
     if (ht) {
         void *privdata[2];
         /* We set the max number of iterations to ten times the specified
@@ -514,6 +522,7 @@ void scanGenericCommand(redisClient *c, robj *o, unsigned long cursor) {
          * it is possible to fetch more data in a type-dependent way. */
         privdata[0] = keys;
         privdata[1] = o;
+        // dict scan .通过回调函数，放入keys ,将找到的数据放入列表的末尾
         do {
             cursor = dictScan(ht, cursor, scanCallback, privdata);
         } while (cursor &&
@@ -522,10 +531,11 @@ void scanGenericCommand(redisClient *c, robj *o, unsigned long cursor) {
     } else if (o->type == REDIS_SET) {
         int pos = 0;
         int64_t ll;
-
+        // set 类型直接
         while(intsetGet(o->ptr,pos++,&ll))
             listAddNodeTail(keys,createStringObjectFromLongLong(ll));
         cursor = 0;
+        // hash 或者是zset ,zipList next 
     } else if (o->type == REDIS_HASH || o->type == REDIS_ZSET) {
         unsigned char *p = ziplistIndex(o->ptr,0);
         unsigned char *vstr;
@@ -545,6 +555,7 @@ void scanGenericCommand(redisClient *c, robj *o, unsigned long cursor) {
     }
 
     /* Step 3: Filter elements. */
+    // filter 元素
     node = listFirst(keys);
     while (node) {
         robj *kobj = listNodeValue(node);
@@ -552,6 +563,7 @@ void scanGenericCommand(redisClient *c, robj *o, unsigned long cursor) {
         int filter = 0;
 
         /* Filter element if it does not match the pattern. */
+        // 如果不匹配，此处的过滤是在上文中给出
         if (!filter && use_pattern) {
             if (sdsEncodedObject(kobj)) {
                 if (!stringmatchlen(pat, patlen, kobj->ptr, sdslen(kobj->ptr), 0))
@@ -591,6 +603,7 @@ void scanGenericCommand(redisClient *c, robj *o, unsigned long cursor) {
     }
 
     /* Step 4: Reply to the client. */
+    // 返回消息给客户端
     addReplyMultiBulkLen(c, 2);
     addReplyBulkLongLong(c,cursor);
 

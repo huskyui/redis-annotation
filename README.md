@@ -160,3 +160,9 @@ fork一个子进程，重写aof文件，会同时记录在aof文件期间，pare
 ### t_hash 
 
 
+### scan
+在`db.c`中的`scanGenericCommand`里面，实现了多种的`scan`，
+
++ 根据不同的元素 。读取元素，读取到后放入list
++ 然后进行filter,进行对列表中元素进行filter
++ 返回消息给客户端
