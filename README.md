@@ -156,3 +156,7 @@ fork一个子进程，重写aof文件，会同时记录在aof文件期间，pare
 ![img_11.png](img_11.png)
 
 ### replication 主从
+
+### t_hash 
+
+

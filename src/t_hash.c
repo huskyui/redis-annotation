@@ -55,6 +55,7 @@ void hashTypeTryConversion(robj *o, robj **argv, int start, int end) {
 }
 
 /* Encode given objects in-place when the hash uses a dict. */
+// 
 void hashTypeTryObjectEncoding(robj *subject, robj **o1, robj **o2) {
     if (subject->encoding == REDIS_ENCODING_HT) {
         if (o1) *o1 = tryObjectEncoding(*o1);
@@ -64,6 +65,7 @@ void hashTypeTryObjectEncoding(robj *subject, robj **o1, robj **o2) {
 
 /* Get the value from a ziplist encoded hash, identified by field.
  * Returns -1 when the field cannot be found. */
+// 获取ziplist
 int hashTypeGetFromZiplist(robj *o, robj *field,
                            unsigned char **vstr,
                            unsigned int *vlen,
@@ -100,11 +102,13 @@ int hashTypeGetFromZiplist(robj *o, robj *field,
 
 /* Get the value from a hash table encoded hash, identified by field.
  * Returns -1 when the field cannot be found. */
+// 获取hash字典中的某个值，， 这个value作为指针，如果返回0,这是找到了
 int hashTypeGetFromHashTable(robj *o, robj *field, robj **value) {
     dictEntry *de;
 
     redisAssert(o->encoding == REDIS_ENCODING_HT);
 
+    // 从哈希表中查找field
     de = dictFind(o->ptr, field);
     if (de == NULL) return -1;
     *value = dictGetVal(de);
@@ -117,6 +121,7 @@ int hashTypeGetFromHashTable(robj *o, robj *field, robj **value) {
  *
  * The lower level function can prevent copy on write so it is
  * the preferred way of doing read operations. */
+// 根据ziplist和dict两张方式，来查找结果
 robj *hashTypeGetObject(robj *o, robj *field) {
     robj *value = NULL;
 
@@ -175,17 +180,20 @@ int hashTypeSet(robj *o, robj *field, robj *value) {
     if (o->encoding == REDIS_ENCODING_ZIPLIST) {
         unsigned char *zl, *fptr, *vptr;
 
+        // 首先对field和value进行解码
         field = getDecodedObject(field);
         value = getDecodedObject(value);
 
         zl = o->ptr;
         fptr = ziplistIndex(zl, ZIPLIST_HEAD);
         if (fptr != NULL) {
+            // 如果存在，就覆盖
             fptr = ziplistFind(fptr, field->ptr, sdslen(field->ptr), 1);
             if (fptr != NULL) {
                 /* Grab pointer to the value (fptr points to the field) */
                 vptr = ziplistNext(zl, fptr);
                 redisAssert(vptr != NULL);
+                // 标识位
                 update = 1;
 
                 /* Delete value */
@@ -196,6 +204,7 @@ int hashTypeSet(robj *o, robj *field, robj *value) {
             }
         }
 
+        // 添加
         if (!update) {
             /* Push new field/value pair onto the tail of the ziplist */
             zl = ziplistPush(zl, field->ptr, sdslen(field->ptr), ZIPLIST_TAIL);
@@ -208,6 +217,7 @@ int hashTypeSet(robj *o, robj *field, robj *value) {
         /* Check if the ziplist needs to be converted to a hash table */
         if (hashTypeLength(o) > server.hash_max_ziplist_entries)
             hashTypeConvert(o, REDIS_ENCODING_HT);
+            // dict add key value 
     } else if (o->encoding == REDIS_ENCODING_HT) {
         if (dictReplace(o->ptr, field, value)) { /* Insert */
             incrRefCount(field);
@@ -261,6 +271,7 @@ int hashTypeDelete(robj *o, robj *field) {
 }
 
 /* Return the number of elements in a hash. */
+// 返回ziplist或者hash的键值对个数
 unsigned long hashTypeLength(robj *o) {
     unsigned long length = ULONG_MAX;
 
@@ -484,6 +495,7 @@ void hsetnxCommand(redisClient *c) {
     if ((o = hashTypeLookupWriteOrCreate(c,c->argv[1])) == NULL) return;
     hashTypeTryConversion(o,c->argv,2,3);
 
+// 如果存在，返回0
     if (hashTypeExists(o, c->argv[2])) {
         addReply(c, shared.czero);
     } else {
